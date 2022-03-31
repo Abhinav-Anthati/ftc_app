@@ -36,8 +36,6 @@ public class CapperControl extends ControlModule {
 
         right_bumper = controllerMap.getButtonMap("endgame", "gamepad1", "right_bumper");
 
-        extension_power = 0.0;
-
         capper.init();
     }
 

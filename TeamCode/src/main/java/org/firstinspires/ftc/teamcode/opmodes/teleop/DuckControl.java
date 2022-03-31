@@ -22,8 +22,8 @@ public class DuckControl extends ControlModule{
     @Override
     public void initialize(Robot robot, ControllerMap controllerMap, ControlMgr manager) {
         this.duck = robot.duck;
-        left_trigger = controllerMap.getAxisMap("duck:spinleft", "gamepad2", "left_trigger");
-        right_trigger = controllerMap.getAxisMap("duck:spinright", "gamepad2", "right_trigger");
+        left_trigger = controllerMap.getAxisMap("duck:spin_left", "gamepad2", "left_trigger");
+        right_trigger = controllerMap.getAxisMap("duck:spin_right", "gamepad2", "right_trigger");
         spinner_speed_timer = new ElapsedTime();
     }
 
