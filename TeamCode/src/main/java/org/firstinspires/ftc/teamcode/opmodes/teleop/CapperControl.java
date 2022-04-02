@@ -14,7 +14,6 @@ public class CapperControl extends ControlModule {
 
     ControllerMap.ButtonEntry right_bumper;
 
-    Duck duck;
     Capper capper;
 
     private boolean endgame = false;
@@ -27,7 +26,6 @@ public class CapperControl extends ControlModule {
 
     @Override
     public void initialize(Robot robot, ControllerMap controllerMap, ControlMgr manager) {
-        duck = robot.duck;
         capper = robot.capper;
 
         right_stick_x = controllerMap.getAxisMap("tape:swivel", "gamepad1", "right_stick_x");
