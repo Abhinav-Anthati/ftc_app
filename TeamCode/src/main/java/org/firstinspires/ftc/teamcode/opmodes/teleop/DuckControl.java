@@ -13,7 +13,6 @@ public class DuckControl extends ControlModule{
     private ElapsedTime spinner_speed_timer;
     private double spinner_speed = 0.0;
     private double time_till_max_speed = 1.2;
-    private boolean stop_duck_spin = false;
 
     public DuckControl(String name){
         super(name);
