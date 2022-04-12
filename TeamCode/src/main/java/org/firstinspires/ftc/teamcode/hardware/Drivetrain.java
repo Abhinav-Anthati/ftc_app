@@ -17,11 +17,13 @@ public class Drivetrain {
 
     private double FORWARD_KP;
     private double TURN_KP;
+    private double STRAFE_KP;
     private double target_forward = 0;
-    private double target_strafe;
+    private double target_strafe = 0;
     private double target_heading = 0;
     private double target_power;
     private boolean driving;
+    private boolean strafing;
 
     public Drivetrain(DcMotorEx front_left, DcMotorEx front_right, DcMotorEx back_left, DcMotorEx back_right, BNO055IMU imu) {
         this.front_left = front_left;
@@ -32,6 +34,7 @@ public class Drivetrain {
 
         FORWARD_KP = Storage.getJsonValue("forward_kp");
         TURN_KP = Storage.getJsonValue("turn_kp");
+        STRAFE_KP = 0.0;
 
         BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
         parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
@@ -66,26 +69,42 @@ public class Drivetrain {
 
     public void changeHeading(double heading, double power){
         target_heading = heading;
+        target_power = power;
+    }
+
+    public void autoStrafe(double strafe, double power) {
+        target_strafe = strafe;
+        target_power = power;
+        strafing = true;
     }
 
     public boolean ifReached(){
         double min = target_forward - 100;
         double max = target_forward + 100;
+        double min_strafe = target_strafe - 100;
+        double max_strafe = target_strafe + 100;
         if (min < getDistance() && getDistance() < max && driving){
             driving = false;
             return true;
         }
+        if (min_strafe < getDistance() && getDistance() < max_strafe && strafing){
+            strafing = false;
+            return true;
+        }
+
         return false;
     }
 
     public void update(){
         double forward_error = target_forward - getDistance();
         double turn_error = target_heading - getHeading();
+        double strafe_error = target_strafe - getDistance();
 
         double forward_power = forward_error * FORWARD_KP * target_power;
         double turn_power = -turn_error * TURN_KP;
+        double strafe_power = strafe_error * STRAFE_KP * target_power;
 
-        move(forward_power, 0, turn_power, 1);
+        move(forward_power, strafe_power, turn_power, 1);
     }
 
     public void stop() {
@@ -95,7 +114,7 @@ public class Drivetrain {
         back_right.setPower(0);
     }
 
-    public void resetEncoders(){
+    public void resetEncoders() {
         front_right.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         back_right.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         front_left.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -107,23 +126,23 @@ public class Drivetrain {
         back_left.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 
-    public double getDistance(){
+    public double getDistance() {
         return (front_left.getCurrentPosition() + front_right.getCurrentPosition() + back_left.getCurrentPosition() + back_right.getCurrentPosition()) / 4.0;
     }
 
-    public double getTargetDistance(){
+    public double getTargetDistance() {
         return target_forward;
     }
 
-    public double getHeading(){
+    public double getHeading() {
         return imu.getAngularOrientation().firstAngle;
     }
 
-    public double getAngularVelocity(){
+    public double getAngularVelocity() {
         return imu.getAngularVelocity().xRotationRate;
     }
 
-    public void closeIMU(){
+    public void closeIMU() {
         imu.close();
     }
 }
