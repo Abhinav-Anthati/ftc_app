@@ -150,7 +150,7 @@ public class Auto extends LoggingOpMode{
                 break;
         }
 
-//        if (drivetrain.ifReached()){
+//        if (drivetrain.ifReached()) {
 //            main_id += 1;
 //        }
 
@@ -171,7 +171,7 @@ public class Auto extends LoggingOpMode{
     public void duck_spin() {
         duck.spin(spinner_speed);
         stop_duck_spin = timer.seconds() >= 2.8;
-        if (stop_duck_spin == true) {
+        if (stop_duck_spin) {
             spinner_speed = 0.0;
            // main_id += 1;
         } else {

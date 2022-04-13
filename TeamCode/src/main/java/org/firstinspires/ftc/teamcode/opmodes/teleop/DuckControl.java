@@ -27,6 +27,12 @@ public class DuckControl extends ControlModule{
 
     @Override
     public void update(Telemetry telemetry) {
+
+        if (left_trigger.get() <= 0.05 && right_trigger.get() <= 0.05) {
+            spinner_speed_timer.reset();
+            spinner_speed = 0.0;
+
+        }
         if (right_trigger.get() > 0.05) {
 
             if (spinner_speed_timer.seconds() >= 2) {
@@ -45,12 +51,6 @@ public class DuckControl extends ControlModule{
             else {
                 spinner_speed = -spinner_speed_timer.seconds() / time_till_max_speed;
             }
-
-        }
-
-        if (left_trigger.get() <= 0.05 && right_trigger.get() <= 0.05) {
-            spinner_speed_timer.reset();
-            spinner_speed = 0.0;
 
         }
 
