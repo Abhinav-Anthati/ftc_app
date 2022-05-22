@@ -14,18 +14,23 @@ public class Lift {
     private DcMotor lift2;
     private DcMotor pivoter;
     public DigitalChannel lift_limit;
+    public DigitalChannel pivot_limit;
     private Logger log = new Logger("Lift");
 
     private double lift_power;
     private double pivot_power;
-
-    private double lift_target;
+    private double lift_target; // Setting to 8813 disables PID
     private double lift_summed_error;
     private double lift_last_error = 0;
-    private double pivot_target;
+    private double pivot_target; // Setting to 8813 disables PID
     private double pivot_summed_error;
     private double pivot_last_error = 0;
+
+    private int reset_id = 0;
     private boolean can_reset;
+    private boolean pivot_reset = false;
+    private ElapsedTime pivot_timer = new ElapsedTime();
+    private boolean pivot_correcting = false;
 
     private double LIFT_KP;
     private double LIFT_KI;
@@ -44,11 +49,12 @@ public class Lift {
     public double print_pivot_integral = 0;
 
     // Raising makes encoder values more negative
-    public Lift(DcMotor lift1, DcMotor lift2, DcMotor pivoter, DigitalChannel lift_limit) {
+    public Lift(DcMotor lift1, DcMotor lift2, DcMotor pivoter, DigitalChannel lift_limit, DigitalChannel pivot_limit) {
         this.lift1 = lift1;
         this.lift2 = lift2;
         this.pivoter = pivoter;
         this.lift_limit = lift_limit;
+        this.pivot_limit = pivot_limit;
         lift_target = 10;
         pivot_target = 0.01;
 
@@ -71,19 +77,56 @@ public class Lift {
             lift1.setPower(0);
             lift2.setPower(0);
 
-            lift1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            lift2.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            lift1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            lift2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
-            pivoter.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            pivoter.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            resetLiftEncoder();
+            resetPivotEncoder();
 
             can_reset = false;
+            pivot_reset = true;
         } else {
-            lift1.setPower(-0.7);
-            lift2.setPower(-0.7);
+            lift1.setPower(-0.6);
+            lift2.setPower(-0.6);
         }
+    }
+
+    public boolean resetPivot(String op_mode){
+        switch (reset_id){
+            case 0:
+                raise(MAX_HEIGHT - 5000);
+                rotate(getPivotPosition());
+                if (liftReached()) {
+                    reset_id += 1;
+                }
+                break;
+            case 1:
+                raise(PITSTOP - 10000);
+                if (liftReached()){
+                    reset_id += 1;
+                }
+                break;
+            case 2:
+                if (op_mode.contains("Blue")){
+                    rotate(30.0);
+                } else if (op_mode.contains("Red")){
+                    rotate(-30.0);
+                }
+                if (pivotReached() && !pivot_correcting){
+                    pivot_correcting = true;
+                    pivot_timer.reset();
+                    log.i("Pivot Reached");
+                }
+                if (pivot_timer.seconds() > 1 && pivot_correcting){
+                    rotate(8813);
+                    pivot_correcting = false;
+                    reset_id += 1;
+                    log.i("Stopped Motor");
+                }
+                break;
+            case 3:
+                reset_id = -1;
+                return true;
+        }
+        update();
+        return false;
     }
 
     public void raise(double target_ticks) {
@@ -96,15 +139,14 @@ public class Lift {
      * @param target_theta 0 degrees is vertical, left is negative, right is positive
      */
     public void rotate(double target_theta) {
-        if (-TURN_LIMIT <= target_theta && target_theta <= TURN_LIMIT && getLiftPosition() > PITSTOP - 5000) {
+        if ((-TURN_LIMIT <= target_theta && target_theta <= TURN_LIMIT) || target_theta == 8813) {
             pivot_target = target_theta;
         }
     }
 
     public void update() {
         if (liftAtBottom() && can_reset) {
-            lift1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            lift1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            resetLiftEncoder();
             can_reset = false;
         } else if (!liftAtBottom()) {
             can_reset = true;
@@ -122,10 +164,12 @@ public class Lift {
 
         //if (lift_power < 0) lift_power *= 0.4;
 
-        lift_power = Range.clip(lift_proportional + lift_integral + lift_derivative, -0.8, 1.0);
+        lift_power = Range.clip(lift_proportional + lift_integral + lift_derivative, -1.0, 0.9);
 
-        lift1.setPower(lift_power);
-        lift2.setPower(lift_power);
+        if (lift_target != 8813) {
+            lift1.setPower(lift_power);
+            lift2.setPower(lift_power);
+        }
 
         // Pivot
         double pivot_error = pivot_target - getPivotPosition();
@@ -137,11 +181,13 @@ public class Lift {
         double pivot_integral = pivot_summed_error * PIVOT_KI;
         double pivot_derivative = (pivot_error - pivot_last_error) / LoopTimer.getLoopTime() * PIVOT_KD;
 
-        //pivot_power = (pivot_proportional + pivot_integral) * 0.5;
+        pivot_power = Range.clip(pivot_proportional + pivot_integral + pivot_derivative, -1.0, 1.0);
 
-        pivot_power = Range.clip(pivot_proportional + pivot_integral + pivot_derivative, -0.8, 0.8);
-
-        pivoter.setPower(pivot_power);
+        if (pivot_target != 8813) {
+            pivoter.setPower(pivot_power);
+        } else {
+            pivoter.setPower(0);
+        }
 
         lift_last_error = lift_error;
         pivot_last_error = pivot_error;
@@ -189,5 +235,37 @@ public class Lift {
 
     public boolean liftAtBottom() {
         return !lift_limit.getState();
+    }
+
+    public boolean pivotAtSide(){
+        return !pivot_limit.getState();
+    }
+
+    public boolean getPivotReset(){
+        return pivot_reset;
+    }
+
+    public void resetLiftEncoder(){
+        lift1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        lift2.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        lift1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        lift2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+
+    public void resetPivotEncoder(){
+        pivoter.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        pivoter.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
+
+    public void setPowers(double lift1, double lift2, double pivoter){
+        this.lift1.setPower(lift1);
+        this.lift2.setPower(lift2);
+        this.pivoter.setPower(pivoter);
+    }
+
+    public void stop(){
+        lift1.setPower(0);
+        lift2.setPower(0);
+        pivoter.setPower(0);
     }
 }
