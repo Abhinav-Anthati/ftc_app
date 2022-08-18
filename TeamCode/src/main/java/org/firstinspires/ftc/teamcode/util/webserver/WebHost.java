@@ -28,7 +28,7 @@ public class WebHost {
      * Hosts a site on robot's IP
      * All templates are stored in src/main/resources/public (for some reason, that's the default)
      */
-    public WebHost(){
+    public WebHost() {
         Spark.staticFiles.location("/public");
 //        Spark.staticFileLocation("/public");
         Spark.port(8813);
